@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Qt / QML
+.qmlcache/
+*.qmlc
+*.jsc
+
+# Systemd
+*.service.bak
+
+# KDE
+plasma-org.kde.plasma.desktop-appletsrc*
+
+# Editors
+*.swp
+.idea/
+.vscode/

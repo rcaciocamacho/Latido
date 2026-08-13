@@ -1,0 +1,12 @@
+[Unit]
+Description=Latido backend (temperatura CPU, uso CPU y RAM)
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 -u %h/.local/bin/latido_backend.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target

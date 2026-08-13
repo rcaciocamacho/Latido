@@ -1,0 +1,17 @@
+{
+    "KPlugin": {
+        "Id": "rccamacho.latido",
+        "Name": "Latido",
+        "Name[es]": "Latido — CPU · RAM · Temperatura",
+        "Description": "CPU temperature, usage and RAM at a glance",
+        "Description[es]": "Temperatura del procesador, uso de CPU y memoria de un vistazo",
+        "Icon": "utilities-system-monitor",
+        "Authors": [{"Name": "Rubén Camacho", "Email": ""}],
+        "License": "GPL-2.0+",
+        "Version": "1.0.0",
+        "Website": "",
+        "Category": "Utilities"
+    },
+    "KPackageStructure": "Plasma/Applet",
+    "X-Plasma-API-Minimum-Version": "6.0"
+}
