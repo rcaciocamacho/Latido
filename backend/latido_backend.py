@@ -203,6 +203,7 @@ class Sampler:
 
     def snapshot(self):
         with self.lock:
+            c = self.config
             return {
                 "temp_c": self.state["temp_c"],
                 "fan_rpm": self.state["fan_rpm"],
@@ -213,6 +214,9 @@ class Sampler:
                 "freq_mhz": self.state["freq_mhz"],
                 "cores": self.cores,
                 "cpu_name": self.cpu_name,
+                # umbrales de temperatura (se refrescan en vivo junto al status)
+                "temp_warn_c": c["temp_warn_c"],
+                "temp_crit_c": c["temp_crit_c"],
                 "history": list(self.state["cpu_hist"]),
                 "mem_history": list(self.state["mem_hist"]),
                 "temp_history": list(self.state["temp_hist"]),

@@ -71,6 +71,10 @@ PlasmoidItem {
             root.freqMhz = d.freq_mhz || 0
             root.cpuHist = d.history || []
             root.memHist = d.mem_history || []
+            // umbrales de temperatura — se refrescan con cada status (cambios en
+            // Configurar → General se propagan en vivo, sin reiniciar el widget)
+            if (d.temp_warn_c > 0) root.tempWarnC = d.temp_warn_c
+            if (d.temp_crit_c > 0) root.tempCritC = d.temp_crit_c
         })
     }
 
