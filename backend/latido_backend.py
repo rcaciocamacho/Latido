@@ -24,6 +24,8 @@ DEFAULT_CONFIG = {
     "unit": "C",
     "temp_warn_c": 60,                  # por debajo -> color normal; desde aquí -> ámbar
     "temp_crit_c": 80,                  # desde aquí -> rojo (umbral crítico)
+    "auto_show": True,                  # mostrar la mascota periódicamente sin pedirla
+    "auto_show_interval_s": 120,        # cada cuánto se auto-abre el panel para enseñarla
 }
 
 SYS_HWMON = Path("/sys/class/hwmon")
@@ -261,6 +263,10 @@ class Handler(BaseHTTPRequestHandler):
                 cfg["temp_crit_c"] = int(max(40, min(125, float(data["temp_crit_c"]))))
             if cfg["temp_crit_c"] <= cfg["temp_warn_c"]:
                 cfg["temp_crit_c"] = cfg["temp_warn_c"] + 5
+            if isinstance(data.get("auto_show"), bool):
+                cfg["auto_show"] = data["auto_show"]
+            if data.get("auto_show_interval_s") is not None:
+                cfg["auto_show_interval_s"] = max(30, min(3600, int(data["auto_show_interval_s"])))
             self.sampler._save_config()
             self._send({"ok": True, "config": cfg})
         else:
