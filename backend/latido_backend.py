@@ -8,7 +8,7 @@ Expone una API JSON en 127.0.0.1:8136. Solo stdlib.
 Endpoints:
     GET  /api/status   -> métricas + historial
     GET  /api/config   -> configuración actual
-    POST /api/config   -> {interval_s: 1-10, unit: "C"|"F"}
+    POST /api/config   -> {interval_s: 1-10, unit: "C"|"F", temp_warn_c, temp_crit_c}
 """
 import json
 import socketserver
@@ -19,7 +19,12 @@ from pathlib import Path
 PORT = 8136
 HISTORY_LEN = 180                       # muestras (a interval_s s -> 3-6 min)
 CONFIG_PATH = Path.home() / ".config" / "latido" / "config.json"
-DEFAULT_CONFIG = {"interval_s": 2, "unit": "C"}
+DEFAULT_CONFIG = {
+    "interval_s": 2,
+    "unit": "C",
+    "temp_warn_c": 60,                  # por debajo -> color normal; desde aquí -> ámbar
+    "temp_crit_c": 80,                  # desde aquí -> rojo (umbral crítico)
+}
 
 SYS_HWMON = Path("/sys/class/hwmon")
 SYS_CPU = Path("/sys/devices/system/cpu")
@@ -246,6 +251,12 @@ class Handler(BaseHTTPRequestHandler):
                 cfg["interval_s"] = max(1, min(10, data["interval_s"]))
             if data.get("unit") in ("C", "F"):
                 cfg["unit"] = data["unit"]
+            if data.get("temp_warn_c") is not None:
+                cfg["temp_warn_c"] = int(max(25, min(115, float(data["temp_warn_c"]))))
+            if data.get("temp_crit_c") is not None:
+                cfg["temp_crit_c"] = int(max(40, min(125, float(data["temp_crit_c"]))))
+            if cfg["temp_crit_c"] <= cfg["temp_warn_c"]:
+                cfg["temp_crit_c"] = cfg["temp_warn_c"] + 5
             self.sampler._save_config()
             self._send({"ok": True, "config": cfg})
         else:

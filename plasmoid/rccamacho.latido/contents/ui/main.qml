@@ -39,6 +39,8 @@ PlasmoidItem {
     property int pollMs: 2000
     property string unit: "C"          // "C" | "F"
     property bool cfgLoaded: false
+    property int tempWarnC: 60         // desde aquí -> ámbar
+    property int tempCritC: 80         // desde aquí -> rojo
 
     // ---------------- API helpers ----------------
     function apiGet(path, cb) {
@@ -77,6 +79,8 @@ PlasmoidItem {
             if (!d) return
             if (d.unit === "F" || d.unit === "C") root.unit = d.unit
             if (d.interval_s > 0) root.pollMs = d.interval_s * 1000
+            if (d.temp_warn_c > 0) root.tempWarnC = d.temp_warn_c
+            if (d.temp_crit_c > 0) root.tempCritC = d.temp_crit_c
             root.cfgLoaded = true
         })
     }
@@ -87,13 +91,13 @@ PlasmoidItem {
         return Math.round(t) + "°"
     }
     function tempColor() {
-        if (root.tempC < 60) return root.cText
-        if (root.tempC < 80) return root.cAmber
+        if (root.tempC < root.tempWarnC) return root.cText
+        if (root.tempC < root.tempCritC) return root.cAmber
         return root.cRed
     }
     function tempIcon() {
-        if (root.tempC < 50) return "temperature-cold-symbolic"
-        if (root.tempC < 80) return "temperature-normal-symbolic"
+        if (root.tempC < root.tempWarnC) return "temperature-cold-symbolic"
+        if (root.tempC < root.tempCritC) return "temperature-normal-symbolic"
         return "temperature-warm-symbolic"
     }
     function fanCompactText() {

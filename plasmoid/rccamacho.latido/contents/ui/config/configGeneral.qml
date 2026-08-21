@@ -11,6 +11,17 @@ KCM.SimpleKCM {
     property string apiUrl: "http://127.0.0.1:8136"
     property int intervalS: 2
     property string unit: "C"
+    property int warnC: 60              // umbral aviso (siempre en °C)
+    property int critC: 80              // umbral crítico (siempre en °C)
+
+    // conversión según la unidad elegida (los umbrales se guardan en °C)
+    function cToUnit(c) { return page.unit === "F" ? Math.round(c * 9 / 5 + 32) : Math.round(c) }
+    function unitToC(v) { return page.unit === "F" ? Math.round((v - 32) / 1.8) : Math.round(v) }
+
+    function refreshSpins() {
+        warnSpin.value = page.cToUnit(page.warnC)
+        critSpin.value = page.cToUnit(page.critC)
+    }
 
     function apiGet(path, cb) {
         var x = new XMLHttpRequest()
@@ -33,7 +44,12 @@ KCM.SimpleKCM {
                 // ok — el plasmoid recoge la nueva config en su próximo fetch
             }
         }
-        x.send(JSON.stringify({interval_s: page.intervalS, unit: page.unit}))
+        x.send(JSON.stringify({
+            interval_s: page.intervalS,
+            unit: page.unit,
+            temp_warn_c: page.warnC,
+            temp_crit_c: page.critC
+        }))
     }
 
     Component.onCompleted: {
@@ -41,12 +57,15 @@ KCM.SimpleKCM {
             if (!d) return
             page.intervalS = d.interval_s || 2
             page.unit = d.unit === "F" ? "F" : "C"
+            page.warnC = d.temp_warn_c || 60
+            page.critC = d.temp_crit_c || 80
             for (var i = 0; i < intervalCombo.model.count; i++) {
                 if (intervalCombo.model.get(i).value === page.intervalS) intervalCombo.currentIndex = i
             }
             for (var j = 0; j < unitCombo.model.count; j++) {
                 if (unitCombo.model.get(j).value === page.unit) unitCombo.currentIndex = j
             }
+            page.refreshSpins()
         })
     }
 
@@ -94,7 +113,61 @@ KCM.SimpleKCM {
                     ListElement { text: "Grados Fahrenheit (°F)"; value: "F" }
                 }
                 textRole: "text"
-                onActivated: page.unit = unitCombo.model.get(currentIndex).value
+                onActivated: {
+                    page.unit = unitCombo.model.get(currentIndex).value
+                    page.refreshSpins()
+                }
+            }
+        }
+
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 1
+            color: Kirigami.Theme.textColor
+            opacity: 0.12
+        }
+
+        // umbral de aviso
+        RowLayout {
+            Layout.fillWidth: true
+            PlasmaComponents3.Label {
+                text: "Aviso de temperatura (ámbar)"
+                Layout.fillWidth: true
+            }
+            Controls.SpinBox {
+                id: warnSpin
+                Layout.preferredWidth: 90
+                from: 20; to: 260; stepSize: 1; editable: true
+                wrap: true
+                onValueModified: page.warnC = page.unitToC(value)
+            }
+            PlasmaComponents3.Label {
+                text: page.unit
+                color: Kirigami.Theme.textColor
+                opacity: 0.6
+                Layout.preferredWidth: 18
+            }
+        }
+
+        // umbral crítico
+        RowLayout {
+            Layout.fillWidth: true
+            PlasmaComponents3.Label {
+                text: "Temperatura crítica (rojo)"
+                Layout.fillWidth: true
+            }
+            Controls.SpinBox {
+                id: critSpin
+                Layout.preferredWidth: 90
+                from: 30; to: 270; stepSize: 1; editable: true
+                wrap: true
+                onValueModified: page.critC = page.unitToC(value)
+            }
+            PlasmaComponents3.Label {
+                text: page.unit
+                color: Kirigami.Theme.textColor
+                opacity: 0.6
+                Layout.preferredWidth: 18
             }
         }
 
