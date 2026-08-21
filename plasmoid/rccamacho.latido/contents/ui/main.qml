@@ -41,11 +41,6 @@ PlasmoidItem {
     property bool cfgLoaded: false
     property int tempWarnC: 60         // desde aquí -> ámbar
     property int tempCritC: 80         // desde aquí -> rojo
-    property bool autoShow: true       // mostrar la mascota periódicamente
-    property int autoShowIntervalS: 120
-
-    // ---- estado de auto-peek de la mascota ----
-    property bool autoPeekActive: false
 
     // ---------------- API helpers ----------------
     function apiGet(path, cb) {
@@ -90,8 +85,6 @@ PlasmoidItem {
             if (d.interval_s > 0) root.pollMs = d.interval_s * 1000
             if (d.temp_warn_c > 0) root.tempWarnC = d.temp_warn_c
             if (d.temp_crit_c > 0) root.tempCritC = d.temp_crit_c
-            root.autoShow = d.auto_show !== undefined ? d.auto_show : true
-            root.autoShowIntervalS = d.auto_show_interval_s > 0 ? d.auto_show_interval_s : 120
             root.cfgLoaded = true
         })
     }
@@ -143,36 +136,6 @@ PlasmoidItem {
     }
     onPollMsChanged: {
         if (root.cfgLoaded) pollTimer.restart()
-    }
-
-    // ---- auto-peek: enseña la mascota periódicamente sin pedirla ----
-    function startAutoPeek() {
-        if (root.expanded) return
-        root.autoPeekActive = true
-        root.expanded = true
-        autoPeekCloseTimer.start()
-    }
-
-    Timer {
-        id: autoPeekTimer
-        interval: root.autoShowIntervalS * 1000
-        running: root.autoShow && root.cfgLoaded && root.backendUp
-        repeat: true
-        triggeredOnStart: false
-        onTriggered: root.startAutoPeek()
-    }
-    onAutoShowIntervalSChanged: autoPeekTimer.restart()
-
-    Timer {
-        id: autoPeekCloseTimer
-        interval: 5500
-        repeat: false
-        onTriggered: {
-            if (root.autoPeekActive) {
-                root.autoPeekActive = false
-                root.expanded = false
-            }
-        }
     }
 
     Component.onCompleted: {
@@ -280,12 +243,6 @@ PlasmoidItem {
         implicitHeight: mainCol.implicitHeight
 
         Rectangle { anchors.fill: parent; color: root.cBG }
-
-        // cualquier interacción cancela el auto-cierre del auto-peek
-        MouseArea {
-            anchors.fill: parent
-            onClicked: root.autoPeekActive = false
-        }
 
         ColumnLayout {
             id: mainCol

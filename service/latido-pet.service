@@ -1,0 +1,12 @@
+[Unit]
+Description=Latido mascota flotante (Pulguito)
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/home/rccamacho/.local/bin/latido_pet.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

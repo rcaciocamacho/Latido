@@ -13,8 +13,7 @@ KCM.SimpleKCM {
     property string unit: "C"
     property int warnC: 60              // umbral aviso (siempre en °C)
     property int critC: 80              // umbral crítico (siempre en °C)
-    property bool autoShow: true        // mostrar la mascota periódicamente
-    property int autoShowIntervalS: 120 // cada cuántos segundos
+    property bool autoShow: true        // mostrar la mascota flotante en el escritorio
 
     // conversión según la unidad elegida (los umbrales se guardan en °C)
     function cToUnit(c) { return page.unit === "F" ? Math.round(c * 9 / 5 + 32) : Math.round(c) }
@@ -51,8 +50,7 @@ KCM.SimpleKCM {
             unit: page.unit,
             temp_warn_c: page.warnC,
             temp_crit_c: page.critC,
-            auto_show: page.autoShow,
-            auto_show_interval_s: page.autoShowIntervalS
+            auto_show: page.autoShow
         }))
     }
 
@@ -64,8 +62,6 @@ KCM.SimpleKCM {
             page.warnC = d.temp_warn_c || 60
             page.critC = d.temp_crit_c || 80
             page.autoShow = d.auto_show !== undefined ? d.auto_show : true
-            page.autoShowIntervalS = d.auto_show_interval_s > 0 ? d.auto_show_interval_s : 120
-            autoSpin.value = page.autoShowIntervalS
             for (var i = 0; i < intervalCombo.model.count; i++) {
                 if (intervalCombo.model.get(i).value === page.intervalS) intervalCombo.currentIndex = i
             }
@@ -178,7 +174,7 @@ KCM.SimpleKCM {
             }
         }
 
-        // mascota periódica
+        // mascota flotante
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: 1
@@ -186,29 +182,19 @@ KCM.SimpleKCM {
             opacity: 0.12
         }
         Controls.CheckBox {
-            text: "Mostrar la mascota periódicamente"
+            text: "Mostrar la mascota flotante en el escritorio"
             checked: page.autoShow
             onToggled: page.autoShow = checked
         }
-        RowLayout {
-            Layout.fillWidth: true
+        PlasmaComponents3.Label {
+            text: "Aparece sola arriba a la derecha cuando la temperatura supera el aviso o la CPU pasa del 90% de uso."
+            font.pixelSize: 10
+            color: Kirigami.Theme.textColor
+            opacity: 0.55
             Layout.leftMargin: 22
-            PlasmaComponents3.Label {
-                text: "Mostrar cada"
-                Layout.fillWidth: true
-            }
-            Controls.SpinBox {
-                id: autoSpin
-                Layout.preferredWidth: 90
-                from: 30; to: 3600; stepSize: 30; editable: true
-                onValueModified: page.autoShowIntervalS = value
-            }
-            PlasmaComponents3.Label {
-                text: "seg"
-                color: Kirigami.Theme.textColor
-                opacity: 0.6
-                Layout.preferredWidth: 30
-            }
+            Layout.preferredWidth: 0
+            Layout.fillWidth: true
+            wrapMode: Text.WordWrap
         }
 
         Controls.Button {
