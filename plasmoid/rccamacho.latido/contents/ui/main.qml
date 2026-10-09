@@ -7,17 +7,29 @@ import org.kde.plasma.components as PlasmaComponents3
 PlasmoidItem {
     id: root
 
-    // Paleta oscura fija (patrón JARVIS — Kirigami.Theme no aplica el color scheme)
-    readonly property color cBG:      "#00060a"
-    readonly property color cPanel:   "#010d14"
-    readonly property color cBorder:  "#0d3347"
-    readonly property color cPri:     "#00d4ff"
-    readonly property color cGreen:   "#00ff88"
-    readonly property color cRed:     "#ff3366"
-    readonly property color cAmber:   "#f5a623"
-    readonly property color cText:    "#8ffcff"
-    readonly property color cTextDim: "#3a8a9a"
-    readonly property color cTextMed: "#5ab8cc"
+    // ============================================================
+    //  ESTILO — lenguaje visual de LibreLinkUp (theme-aware)
+    //  Neutros derivados del tema (se adaptan a claro/oscuro).
+    //  Acentos = semántica de estado: verde/ámbar/rojo/azul.
+    // ============================================================
+    readonly property color cText:   Kirigami.Theme.textColor
+    readonly property color cMed:    Qt.alpha(Kirigami.Theme.textColor, 0.80)   // secundario destacado
+    readonly property color cDim:    Qt.alpha(Kirigami.Theme.textColor, 0.60)   // pies / captions
+    readonly property color cCard:   Qt.alpha(Kirigami.Theme.textColor, 0.05)   // fondo de tarjeta
+    readonly property color cBorder: Qt.alpha(Kirigami.Theme.textColor, 0.10)   // borde / track / divisor
+    readonly property color cOK:     "#2ecc71"   // verde  — en rango
+    readonly property color cWarn:   "#f39c12"   // ámbar  — aviso
+    readonly property color cErr:    "#e74c3c"   // rojo   — crítico
+    readonly property color cInfo:   "#3498db"   // azul   — acento informativo
+
+    // medidas (escala LibreLinkUp)
+    readonly property int rCard:   8
+    readonly property int mCard:   10   // margen interno de tarjeta
+    readonly property int mMargin: 12   // margen del popup
+    readonly property int gSpace:  8    // espaciado entre bloques
+    readonly property int fsCap:   10   // caption
+    readonly property int fsBody:  11   // cuerpo
+    readonly property int fsVal:   22   // valor
 
     property string apiUrl: "http://127.0.0.1:8136"
     property bool backendUp: false
@@ -95,9 +107,9 @@ PlasmoidItem {
         return Math.round(t) + "°"
     }
     function tempColor() {
-        if (root.tempC < root.tempWarnC) return root.cText
-        if (root.tempC < root.tempCritC) return root.cAmber
-        return root.cRed
+        if (root.tempC < root.tempWarnC) return root.cOK
+        if (root.tempC < root.tempCritC) return root.cWarn
+        return root.cErr
     }
     function tempIcon() {
         if (root.tempC < root.tempWarnC) return "temperature-cold-symbolic"
@@ -171,7 +183,6 @@ PlasmoidItem {
                 Layout.preferredWidth: 1
                 Layout.preferredHeight: 14
                 color: root.cBorder
-                opacity: 0.7
             }
 
             Kirigami.Icon {
@@ -184,14 +195,13 @@ PlasmoidItem {
                 text: root.backendUp ? Math.round(root.cpuPct) + "%" : "—"
                 font.pixelSize: 13
                 font.weight: Font.DemiBold
-                color: root.cPri
+                color: root.cInfo
             }
 
             Rectangle {
                 Layout.preferredWidth: 1
                 Layout.preferredHeight: 14
                 color: root.cBorder
-                opacity: 0.7
             }
 
             Kirigami.Icon {
@@ -211,7 +221,6 @@ PlasmoidItem {
                 Layout.preferredWidth: 1
                 Layout.preferredHeight: 14
                 color: root.cBorder
-                opacity: 0.7
             }
 
             Image {
@@ -225,7 +234,7 @@ PlasmoidItem {
                 text: root.fanCompactText()
                 font.pixelSize: 13
                 font.weight: Font.DemiBold
-                color: root.cTextMed
+                color: root.cMed
             }
         }
 
@@ -240,24 +249,30 @@ PlasmoidItem {
     // ============================================================
     fullRepresentation: Item {
         implicitWidth: 330
-        implicitHeight: mainCol.implicitHeight
-
-        Rectangle { anchors.fill: parent; color: root.cBG }
+        implicitHeight: mainCol.implicitHeight + 2 * root.mMargin
 
         ColumnLayout {
             id: mainCol
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
-            spacing: 6
+            anchors.leftMargin: root.mMargin
+            anchors.rightMargin: root.mMargin
+            anchors.topMargin: root.mMargin
+            spacing: root.gSpace
 
-            // ---------- mascota ----------
-            Item {
+            // ---------- tarjeta: mascota ----------
+            Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 92
+                Layout.preferredHeight: 104
+                radius: root.rCard
+                color: root.cCard
+                border.width: 1
+                border.color: root.cBorder
+
                 ColumnLayout {
                     anchors.fill: parent
-                    anchors.topMargin: 4
+                    anchors.margins: root.mCard
                     spacing: 2
                     Pet {
                         Layout.alignment: Qt.AlignHCenter
@@ -270,87 +285,88 @@ PlasmoidItem {
                     }
                     PlasmaComponents3.Label {
                         text: root.backendUp ? root.petMoodText() : "El sistema está fuera…"
-                        font.pixelSize: 11
-                        color: root.cTextMed
+                        font.pixelSize: root.fsBody
+                        color: root.cDim
                         Layout.alignment: Qt.AlignHCenter
                     }
                 }
             }
 
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 1
-                color: root.cBorder
-                opacity: 0.5
-            }
-
             // ---------- header ----------
-            Item {
+            RowLayout {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 44
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.leftMargin: 16
-                    anchors.rightMargin: 16
-                    spacing: 8
-                    Kirigami.Icon {
-                        source: "utilities-system-monitor"
-                        Layout.preferredWidth: 20
-                        Layout.preferredHeight: 20
-                    }
-                    PlasmaComponents3.Label {
-                        text: "Latido"
-                        font.weight: Font.DemiBold
-                        font.pixelSize: 14
-                        Layout.fillWidth: true
-                    }
-                    Rectangle {
-                        Layout.preferredWidth: 8
-                        Layout.preferredHeight: 8
-                        radius: 4
-                        color: root.backendUp ? root.cGreen : root.cRed
-                    }
-                    PlasmaComponents3.Label {
-                        text: root.backendUp ? "en vivo" : "sin datos"
-                        font.pixelSize: 11
-                        color: root.backendUp ? root.cGreen : root.cRed
-                    }
+                Layout.leftMargin: 2
+                Layout.rightMargin: 2
+                spacing: root.gSpace
+                Kirigami.Icon {
+                    source: "utilities-system-monitor"
+                    Layout.preferredWidth: 20
+                    Layout.preferredHeight: 20
+                }
+                PlasmaComponents3.Label {
+                    text: "Latido"
+                    font.weight: Font.DemiBold
+                    font.pixelSize: 14
+                    Layout.fillWidth: true
+                }
+                Rectangle {
+                    Layout.preferredWidth: 8
+                    Layout.preferredHeight: 8
+                    radius: 4
+                    color: root.backendUp ? root.cOK : root.cErr
+                }
+                PlasmaComponents3.Label {
+                    text: root.backendUp ? "en vivo" : "sin datos"
+                    font.pixelSize: root.fsBody
+                    color: root.backendUp ? root.cOK : root.cErr
                 }
             }
 
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 1
-                color: root.cBorder
-                opacity: 0.5
-            }
-
-            // ---------- aviso backend caído ----------
+            // ---------- aviso backend caído (caja de estado) ----------
             Rectangle {
                 Layout.fillWidth: true
                 visible: !root.backendUp
-                color: "#3d0a0a"
-                Layout.preferredHeight: 34
-                PlasmaComponents3.Label {
+                implicitHeight: warnLabel.contentHeight + 2 * root.mCard
+                radius: 6
+                color: Qt.rgba(root.cErr.r, root.cErr.g, root.cErr.b, 0.10)
+                border.width: 1
+                border.color: Qt.alpha(root.cErr, 0.20)
+
+                RowLayout {
                     anchors.fill: parent
-                    anchors.leftMargin: 16
-                    anchors.rightMargin: 16
-                    verticalAlignment: Text.AlignVCenter
-                    text: "⚠ Backend no disponible — inicia latido.service"
-                    font.pixelSize: 11
-                    color: "#ff8080"
+                    anchors.margins: root.gSpace
+                    spacing: root.gSpace
+                    Kirigami.Icon {
+                        source: "dialog-warning"
+                        Layout.preferredWidth: 16
+                        Layout.preferredHeight: 16
+                        Layout.alignment: Qt.AlignVCenter
+                    }
+                    PlasmaComponents3.Label {
+                        id: warnLabel
+                        text: "Backend no disponible — inicia latido.service"
+                        font.pixelSize: root.fsCap
+                        color: root.cErr
+                        wrapMode: Text.WordWrap
+                        Layout.fillWidth: true
+                        Layout.alignment: Qt.AlignVCenter
+                    }
                 }
             }
 
-            // ---------- tarjeta temperatura ----------
-            Item {
+            // ---------- tarjeta: temperatura ----------
+            Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 58
+                Layout.preferredHeight: 62
+                radius: root.rCard
+                color: root.cCard
+                border.width: 1
+                border.color: root.cBorder
+
                 RowLayout {
                     anchors.fill: parent
-                    anchors.leftMargin: 16
-                    anchors.rightMargin: 16
-                    spacing: 12
+                    anchors.margins: root.mCard
+                    spacing: root.gSpace + 4
                     Kirigami.Icon {
                         source: root.tempIcon()
                         Layout.preferredWidth: 26
@@ -361,42 +377,38 @@ PlasmoidItem {
                         Layout.fillWidth: true
                         PlasmaComponents3.Label {
                             text: "TEMPERATURA CPU"
-                            font.pixelSize: 10
+                            font.pixelSize: root.fsCap
                             font.weight: Font.Medium
-                            color: root.cTextDim
+                            opacity: 0.6
                         }
                         PlasmaComponents3.Label {
                             text: root.backendUp ? root.tempDisplay() : "—"
-                            font.pixelSize: 26
+                            font.pixelSize: root.fsVal + 4
                             font.weight: Font.Bold
                             color: root.tempColor()
                         }
                     }
                     PlasmaComponents3.Label {
                         text: root.backendUp ? (root.freqMhz / 1000).toFixed(2) + " GHz" : ""
-                        font.pixelSize: 11
-                        color: root.cTextMed
+                        font.pixelSize: root.fsBody
+                        color: root.cMed
                     }
                 }
             }
 
-            // ---------- línea divisoria ----------
+            // ---------- tarjeta: ventilador ----------
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 1
-                color: root.cBorder
-                opacity: 0.35
-            }
+                Layout.preferredHeight: 62
+                radius: root.rCard
+                color: root.cCard
+                border.width: 1
+                border.color: root.cBorder
 
-            // ---------- tarjeta ventilador ----------
-            Item {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 58
                 RowLayout {
                     anchors.fill: parent
-                    anchors.leftMargin: 16
-                    anchors.rightMargin: 16
-                    spacing: 12
+                    anchors.margins: root.mCard
+                    spacing: root.gSpace + 4
                     Image {
                         source: "../images/fan.svg"
                         sourceSize: Qt.size(26, 26)
@@ -409,45 +421,41 @@ PlasmoidItem {
                         Layout.fillWidth: true
                         PlasmaComponents3.Label {
                             text: "VENTILADOR"
-                            font.pixelSize: 10
+                            font.pixelSize: root.fsCap
                             font.weight: Font.Medium
-                            color: root.cTextDim
+                            opacity: 0.6
                         }
                         PlasmaComponents3.Label {
                             text: root.backendUp && root.fanRpm > 0 ? root.fanRpm + " RPM" : "—"
-                            font.pixelSize: 22
+                            font.pixelSize: root.fsVal
                             font.weight: Font.Bold
-                            color: root.cTextMed
+                            color: root.cMed
                         }
                     }
                     PlasmaComponents3.Label {
                         text: root.backendUp && root.fanRpm > 0 ? "en marcha" : "parado"
-                        font.pixelSize: 11
-                        color: root.backendUp && root.fanRpm > 0 ? root.cGreen : root.cTextDim
+                        font.pixelSize: root.fsBody
+                        color: root.backendUp && root.fanRpm > 0 ? root.cOK : root.cDim
                     }
                 }
             }
 
-            // ---------- línea divisoria ----------
+            // ---------- tarjeta: CPU ----------
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 1
-                color: root.cBorder
-                opacity: 0.35
-            }
+                Layout.preferredHeight: 100
+                radius: root.rCard
+                color: root.cCard
+                border.width: 1
+                border.color: root.cBorder
 
-            // ---------- tarjeta CPU ----------
-            Item {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 96
                 ColumnLayout {
                     anchors.fill: parent
-                    anchors.leftMargin: 16
-                    anchors.rightMargin: 16
-                    spacing: 6
+                    anchors.margins: root.mCard
+                    spacing: root.gSpace - 2
                     RowLayout {
                         Layout.fillWidth: true
-                        spacing: 12
+                        spacing: root.gSpace + 4
                         Kirigami.Icon {
                             source: "cpu"
                             Layout.preferredWidth: 22
@@ -458,21 +466,21 @@ PlasmoidItem {
                             Layout.fillWidth: true
                             PlasmaComponents3.Label {
                                 text: "CPU"
-                                font.pixelSize: 10
+                                font.pixelSize: root.fsCap
                                 font.weight: Font.Medium
-                                color: root.cTextDim
+                                opacity: 0.6
                             }
                             PlasmaComponents3.Label {
                                 text: root.backendUp ? Math.round(root.cpuPct) + "%" : "—"
-                                font.pixelSize: 22
+                                font.pixelSize: root.fsVal
                                 font.weight: Font.Bold
-                                color: root.cPri
+                                color: root.cInfo
                             }
                         }
                         PlasmaComponents3.Label {
                             text: root.cores > 0 ? root.cores + " hilos" : ""
-                            font.pixelSize: 11
-                            color: root.cTextMed
+                            font.pixelSize: root.fsBody
+                            color: root.cMed
                         }
                     }
                     Rectangle {
@@ -486,39 +494,35 @@ PlasmoidItem {
                             width: parent.width * Math.min(1, root.cpuPct / 100)
                             height: 4
                             radius: 2
-                            color: root.cPri
+                            color: root.cInfo
                         }
                     }
                     SparkLine {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 30
-                        lineColor: root.cPri
-                        fillColor: root.cPri
+                        Layout.preferredHeight: 28
+                        lineColor: root.cInfo
+                        fillColor: root.cInfo
                         series: root.cpuHist
                     }
                 }
             }
 
-            // ---------- línea divisoria ----------
+            // ---------- tarjeta: RAM ----------
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 1
-                color: root.cBorder
-                opacity: 0.35
-            }
+                Layout.preferredHeight: 100
+                radius: root.rCard
+                color: root.cCard
+                border.width: 1
+                border.color: root.cBorder
 
-            // ---------- tarjeta RAM ----------
-            Item {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 96
                 ColumnLayout {
                     anchors.fill: parent
-                    anchors.leftMargin: 16
-                    anchors.rightMargin: 16
-                    spacing: 6
+                    anchors.margins: root.mCard
+                    spacing: root.gSpace - 2
                     RowLayout {
                         Layout.fillWidth: true
-                        spacing: 12
+                        spacing: root.gSpace + 4
                         Kirigami.Icon {
                             source: "memory"
                             Layout.preferredWidth: 22
@@ -529,21 +533,21 @@ PlasmoidItem {
                             Layout.fillWidth: true
                             PlasmaComponents3.Label {
                                 text: "MEMORIA"
-                                font.pixelSize: 10
+                                font.pixelSize: root.fsCap
                                 font.weight: Font.Medium
-                                color: root.cTextDim
+                                opacity: 0.6
                             }
                             PlasmaComponents3.Label {
                                 text: root.backendUp ? Math.round(root.memPct) + "%" : "—"
-                                font.pixelSize: 22
+                                font.pixelSize: root.fsVal
                                 font.weight: Font.Bold
                                 color: root.cText
                             }
                         }
                         PlasmaComponents3.Label {
                             text: root.backendUp ? root.memUsed + " / " + root.memTotal + " GB" : ""
-                            font.pixelSize: 11
-                            color: root.cTextMed
+                            font.pixelSize: root.fsBody
+                            color: root.cMed
                         }
                     }
                     Rectangle {
@@ -557,47 +561,37 @@ PlasmoidItem {
                             width: parent.width * Math.min(1, root.memPct / 100)
                             height: 4
                             radius: 2
-                            color: root.cTextMed
+                            color: root.cMed
                         }
                     }
                     SparkLine {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 30
-                        lineColor: root.cTextMed
-                        fillColor: root.cTextMed
+                        Layout.preferredHeight: 28
+                        lineColor: root.cMed
+                        fillColor: root.cMed
                         series: root.memHist
                     }
                 }
             }
 
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 1
-                color: root.cBorder
-                opacity: 0.5
-            }
-
             // ---------- footer ----------
-            Item {
+            RowLayout {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 34
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.leftMargin: 16
-                    anchors.rightMargin: 16
-                    spacing: 8
-                    PlasmaComponents3.Label {
-                        text: root.cpuName || "—"
-                        font.pixelSize: 10
-                        color: root.cTextDim
-                        Layout.fillWidth: true
-                        elide: Text.ElideRight
-                    }
-                    PlasmaComponents3.Label {
-                        text: root.cores > 0 ? root.cores + " hilos" : ""
-                        font.pixelSize: 10
-                        color: root.cTextDim
-                    }
+                Layout.leftMargin: 2
+                Layout.rightMargin: 2
+                Layout.topMargin: 2
+                spacing: root.gSpace
+                PlasmaComponents3.Label {
+                    text: root.cpuName || "—"
+                    font.pixelSize: root.fsBody
+                    color: root.cDim
+                    Layout.fillWidth: true
+                    elide: Text.ElideRight
+                }
+                PlasmaComponents3.Label {
+                    text: root.cores > 0 ? root.cores + " hilos" : ""
+                    font.pixelSize: root.fsBody
+                    color: root.cDim
                 }
             }
         }
