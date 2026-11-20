@@ -36,7 +36,7 @@ PlasmoidItem {
 
     // ---- métricas (alimentadas por /api/status) ----
     property double tempC: 0
-    property int fanRpm: 0
+    property var fanRpm: null          // int, o null = SIN lectura del sensor
     property double cpuPct: 0
     property double memPct: 0
     property string memUsed: "0"
@@ -47,12 +47,29 @@ PlasmoidItem {
     property var cpuHist: []
     property var memHist: []
 
+    // ---- perfil térmico compartido (bloque «termico» del backend, §3.4) ----
+    // El estado lo calcula el backend (suavizado, histéresis, persistencia);
+    // el QML solo lo pinta. Sin la librería instalada: termDisponible = false
+    // y se mantiene el aspecto neutro de siempre.
+    property bool termDisponible: false
+    property string termEstado: ""         // idle|normal|boost|warning|critical
+    property string termEstadoAnterior: ""
+    property var tempSuaveC: null          // °C suavizados
+    property int termDesdeS: 0             // segundos en el estado actual
+    property int restanteS: 0              // segundos que faltan para bajar
+    property bool fanAviso: false          // anomalía declarada por el backend
+    property string fanAvisoMotivo: ""
+    property bool fanSensorOk: true        // false = sin lectura del ventilador
+    property int tic: 0                    // tic de 1 Hz (parpadeo de «critical»)
+
     // ---- configuración ----
-    property int pollMs: 2000
+    property int pollMs: 2000          // cadencia del QML (el muestreo del backend es 1 s)
     property string unit: "C"          // "C" | "F"
     property bool cfgLoaded: false
-    property int tempWarnC: 60         // desde aquí -> ámbar
-    property int tempCritC: 80         // desde aquí -> rojo
+    // override legítimo de warning_min/critical_min del perfil (§4.3): el
+    // backend los publica en termico.perfil.umbrales y NO colorean por sí solos
+    property int tempWarnC: 87
+    property int tempCritC: 94
 
     // ---------------- API helpers ----------------
     function apiGet(path, cb) {
@@ -73,7 +90,8 @@ PlasmoidItem {
             if (!d) { root.backendUp = false; return }
             root.backendUp = true
             root.tempC = d.temp_c != null ? d.temp_c : 0
-            root.fanRpm = d.fan_rpm || 0
+            // null = el sensor no responde (NO es 0 rpm: contrato §3.2)
+            root.fanRpm = (d.fan_rpm === null || d.fan_rpm === undefined) ? null : d.fan_rpm
             root.cpuPct = d.cpu_pct || 0
             root.memPct = d.mem_pct || 0
             root.memUsed = d.mem_used_gb != null ? d.mem_used_gb.toFixed(1) : "0"
@@ -83,10 +101,36 @@ PlasmoidItem {
             root.freqMhz = d.freq_mhz || 0
             root.cpuHist = d.history || []
             root.memHist = d.mem_history || []
-            // umbrales de temperatura — se refrescan con cada status (cambios en
-            // Configurar → General se propagan en vivo, sin reiniciar el widget)
+            // umbrales de temperatura (override del perfil, se refresca en vivo
+            // con cada status: cambios en Configurar se propagan sin reiniciar)
             if (d.temp_warn_c > 0) root.tempWarnC = d.temp_warn_c
             if (d.temp_crit_c > 0) root.tempCritC = d.temp_crit_c
+            // ---- estado térmico compartido ----
+            var t = d.termico
+            if (t && t.disponible) {
+                root.termDisponible = true
+                root.termEstado = t.estado || ""
+                root.termEstadoAnterior = t.estado_anterior || ""
+                root.tempSuaveC = (t.temp_suave_c === undefined ? null : t.temp_suave_c)
+                root.termDesdeS = t.desde_s || 0
+                root.restanteS = t.restante_s || 0
+                const v = t.ventilador || {}
+                root.fanAviso = v.aviso === true
+                root.fanAvisoMotivo = v.aviso_motivo || ""
+                const s = t.sensor || {}
+                root.fanSensorOk = s.fan_disponible !== false
+            } else {
+                // degradación (§5.11): sin perfil no hay banda; aspecto neutro
+                root.termDisponible = false
+                root.termEstado = ""
+                root.termEstadoAnterior = ""
+                root.tempSuaveC = null
+                root.termDesdeS = 0
+                root.restanteS = 0
+                root.fanAviso = false
+                root.fanAvisoMotivo = ""
+                root.fanSensorOk = true
+            }
         })
     }
 
@@ -106,28 +150,103 @@ PlasmoidItem {
         var t = root.unit === "F" ? root.tempC * 9 / 5 + 32 : root.tempC
         return Math.round(t) + "°"
     }
+    function tempSuaveDisplay() {
+        if (root.tempSuaveC === null) return ""
+        var t = root.unit === "F" ? root.tempSuaveC * 9 / 5 + 32 : root.tempSuaveC
+        return Math.round(t) + "°"
+    }
+    // §4.1 — tabla de estados: color, icono y etiqueta salen de termico.estado
+    function estadoColor(e) {
+        if (e === "normal") return root.cOK
+        if (e === "boost") return root.cInfo
+        if (e === "warning") return root.cWarn
+        if (e === "critical") return root.cErr
+        return root.cMed                    // idle (y estado desconocido)
+    }
+    function estadoIcono(e) {
+        if (e === "idle") return "temperature-cold-symbolic"
+        if (e === "warning" || e === "critical") return "temperature-warm-symbolic"
+        return "temperature-normal-symbolic" // normal y boost
+    }
+    function estadoEtiqueta(e) {
+        if (e === "idle") return "Reposo"
+        if (e === "normal") return "Normal"
+        if (e === "boost") return "Carga alta"
+        if (e === "warning") return "Aviso"
+        if (e === "critical") return "Crítico"
+        return ""
+    }
     function tempColor() {
-        if (root.tempC < root.tempWarnC) return root.cOK
-        if (root.tempC < root.tempCritC) return root.cWarn
-        return root.cErr
+        // SIEMPRE la banda del backend; sin perfil, neutro (nunca umbrales QML)
+        return root.termDisponible ? root.estadoColor(root.termEstado) : root.cMed
     }
     function tempIcon() {
-        if (root.tempC < root.tempWarnC) return "temperature-cold-symbolic"
-        if (root.tempC < root.tempCritC) return "temperature-normal-symbolic"
-        return "temperature-warm-symbolic"
+        return root.termDisponible ? root.estadoIcono(root.termEstado)
+                                   : "temperature-cold-symbolic"
+    }
+    // «critical» parpadea a 1 Hz con binding sobre el tic, sin animaciones
+    function parpadeoCritico() {
+        var _ = root.tic
+        if (!root.termDisponible || root.termEstado !== "critical") return 1.0
+        return (root.tic % 2) === 0 ? 0.25 : 1.0
+    }
+    // temp_suave_c como subtítulo solo si difiere ≥ 2 °C del instantáneo
+    function tempSuaveVisible() {
+        if (!root.termDisponible || root.tempSuaveC === null) return false
+        return Math.abs(root.tempSuaveC - root.tempC) >= 2
+    }
+    function restanteTexto() {
+        return root.restanteS > 0 ? "bajando en " + root.restanteS + "s" : ""
     }
     function fanCompactText() {
-        if (!root.backendUp || root.fanRpm <= 0) return "—"
+        if (!root.backendUp || root.fanRpm === null || !root.fanSensorOk) return "—"
         if (root.fanRpm >= 1000) return Math.floor(root.fanRpm / 1000) + "K"
         return String(root.fanRpm)
     }
+    function fanValorTexto() {
+        if (!root.backendUp || root.fanRpm === null || !root.fanSensorOk) return "—"
+        return root.fanRpm + " RPM"
+    }
+    // tarjeta VENTILADOR: en marcha / parado / ¡sin respuesta!
+    function fanEstadoTexto() {
+        if (!root.backendUp) return "—"
+        if (root.fanAviso) return "¡sin respuesta!"
+        if (root.fanRpm === null || !root.fanSensorOk) return "—"
+        return root.fanRpm > 0 ? "en marcha" : "parado"
+    }
+    function fanEstadoColor() {
+        if (!root.backendUp) return root.cDim
+        if (root.fanAviso) return root.cErr
+        if (root.fanRpm === null || !root.fanSensorOk) return root.cDim
+        return root.fanRpm > 0 ? root.cOK : root.cDim
+    }
+    function fanTooltip() {
+        if (root.fanAviso)
+            return root.fanAvisoMotivo.length > 0 ? root.fanAvisoMotivo
+                                                  : "temperatura alta sin respuesta del ventilador"
+        if (!root.backendUp) return "backend no disponible"
+        if (root.fanRpm === null || !root.fanSensorOk)
+            return "sin lectura del sensor del ventilador"
+        return root.fanRpm > 0 ? root.fanRpm + " RPM" : "parado (0 RPM)"
+    }
+    function tempTooltip() {
+        var partes = []
+        if (root.termDisponible && root.termEstado !== "")
+            partes.push(root.estadoEtiqueta(root.termEstado))
+        if (root.termDisponible && root.tempSuaveC !== null)
+            partes.push("media " + root.tempSuaveDisplay())
+        if (root.termDesdeS > 0) partes.push("desde hace " + root.termDesdeS + "s")
+        if (root.restanteS > 0) partes.push(root.restanteTexto())
+        return partes.join(" · ")
+    }
+    // La mascota lee el estado del backend (no umbrales del QML, §4.2)
     function petStateName() {
-        if (!root.backendUp) return "idle"
-        if (root.tempC >= root.tempCritC) return "crit"
-        if (root.tempC >= root.tempWarnC) return "hot"
-        if (root.cpuPct >= 60) return "busy"
-        if (root.cpuPct < 4 && root.tempC < root.tempWarnC - 8) return "sleepy"
-        return "idle"
+        if (!root.backendUp || !root.termDisponible) return "idle"
+        if (root.termEstado === "idle") return root.cpuPct < 4 ? "sleepy" : "idle"
+        if (root.termEstado === "boost") return "busy"
+        if (root.termEstado === "warning") return "hot"
+        if (root.termEstado === "critical") return "crit"
+        return "idle"                       // normal (y estado desconocido)
     }
     function petMoodText() {
         var s = root.petStateName()
@@ -137,6 +256,17 @@ PlasmoidItem {
         if (s === "sleepy") return "Zzz… todo en calma"
         return "Todo tranquilo…"
     }
+
+    // ---- tooltip del icono del panel (y «ficha» al pasar el ratón) ----
+    toolTipMainText: root.backendUp
+        ? "Latido — " + root.tempDisplay()
+          + (root.termDisponible ? " · " + root.estadoEtiqueta(root.termEstado) : "")
+        : "Latido — sin datos"
+    toolTipSubText: root.backendUp
+        ? [root.restanteTexto(),
+           root.fanAviso ? "ventilador: ¡sin respuesta!" : ""]
+              .filter(function(s) { return s !== "" }).join(" · ")
+        : "Backend no disponible"
 
     Timer {
         id: pollTimer
@@ -148,6 +278,15 @@ PlasmoidItem {
     }
     onPollMsChanged: {
         if (root.cfgLoaded) pollTimer.restart()
+    }
+
+    // tic de 1 Hz: única fuente del parpadeo de «critical» (§4.1)
+    Timer {
+        id: ticTimer
+        interval: 1000
+        running: true
+        repeat: true
+        onTriggered: root.tic++
     }
 
     Component.onCompleted: {
@@ -170,13 +309,14 @@ PlasmoidItem {
                 source: root.backendUp ? root.tempIcon() : "temperature-cold-symbolic"
                 Layout.preferredWidth: 18
                 Layout.preferredHeight: 18
-                opacity: root.backendUp ? 1 : 0.4
+                opacity: root.backendUp ? root.parpadeoCritico() : 0.4
             }
             PlasmaComponents3.Label {
                 text: root.backendUp ? root.tempDisplay() : "—"
                 font.pixelSize: 13
                 font.weight: Font.DemiBold
                 color: root.tempColor()
+                opacity: root.parpadeoCritico()
             }
 
             Rectangle {
@@ -278,10 +418,8 @@ PlasmoidItem {
                         Layout.alignment: Qt.AlignHCenter
                         pixel: 5
                         backendUp: root.backendUp
-                        cpuPct: root.cpuPct
-                        tempC: root.tempC
-                        tempWarnC: root.tempWarnC
-                        tempCritC: root.tempCritC
+                        // el estado lo decide el backend (termico.estado)
+                        estadoMascota: root.petStateName()
                     }
                     PlasmaComponents3.Label {
                         text: root.backendUp ? root.petMoodText() : "El sistema está fuera…"
@@ -356,12 +494,19 @@ PlasmoidItem {
 
             // ---------- tarjeta: temperatura ----------
             Rectangle {
+                id: tempCard
                 Layout.fillWidth: true
-                Layout.preferredHeight: 62
+                Layout.preferredHeight: 70
                 radius: root.rCard
                 color: root.cCard
                 border.width: 1
                 border.color: root.cBorder
+
+                HoverHandler { id: tempHover }
+                PlasmaComponents3.ToolTip {
+                    visible: tempHover.hovered && root.tempTooltip() !== ""
+                    text: root.tempTooltip()
+                }
 
                 RowLayout {
                     anchors.fill: parent
@@ -371,39 +516,96 @@ PlasmoidItem {
                         source: root.tempIcon()
                         Layout.preferredWidth: 26
                         Layout.preferredHeight: 26
+                        Layout.alignment: Qt.AlignVCenter
+                        opacity: root.parpadeoCritico()
                     }
                     ColumnLayout {
-                        spacing: 1
+                        spacing: 0
                         Layout.fillWidth: true
-                        PlasmaComponents3.Label {
-                            text: "TEMPERATURA CPU"
-                            font.pixelSize: root.fsCap
-                            font.weight: Font.Medium
-                            opacity: 0.6
+                        Layout.minimumWidth: 0
+                        // rótulo + chip del estado (el chip no debe empujar nada:
+                        // el rótulo se elide con minimumWidth 0)
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Layout.minimumWidth: 0
+                            spacing: 6
+                            PlasmaComponents3.Label {
+                                text: "TEMPERATURA CPU"
+                                font.pixelSize: root.fsCap
+                                font.weight: Font.Medium
+                                opacity: 0.6
+                                elide: Text.ElideRight
+                                Layout.fillWidth: true
+                                Layout.minimumWidth: 0
+                            }
+                            Rectangle {
+                                id: chipEstado
+                                visible: root.termDisponible && root.termEstado !== ""
+                                implicitWidth: chipEstadoLabel.implicitWidth + 12
+                                implicitHeight: chipEstadoLabel.implicitHeight + 4
+                                radius: 4
+                                color: Qt.rgba(root.estadoColor(root.termEstado).r,
+                                               root.estadoColor(root.termEstado).g,
+                                               root.estadoColor(root.termEstado).b, 0.16)
+                                PlasmaComponents3.Label {
+                                    id: chipEstadoLabel
+                                    anchors.centerIn: parent
+                                    text: root.estadoEtiqueta(root.termEstado)
+                                    font.pixelSize: root.fsCap
+                                    font.weight: Font.DemiBold
+                                    color: root.estadoColor(root.termEstado)
+                                }
+                            }
                         }
-                        PlasmaComponents3.Label {
-                            text: root.backendUp ? root.tempDisplay() : "—"
-                            font.pixelSize: root.fsVal + 4
-                            font.weight: Font.Bold
-                            color: root.tempColor()
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Layout.minimumWidth: 0
+                            spacing: 6
+                            PlasmaComponents3.Label {
+                                text: root.backendUp ? root.tempDisplay() : "—"
+                                font.pixelSize: root.fsVal + 4
+                                font.weight: Font.Bold
+                                color: root.tempColor()
+                                opacity: root.parpadeoCritico()
+                            }
+                            // temp_suave_c solo cuando difiere ≥ 2 °C del instantáneo
+                            PlasmaComponents3.Label {
+                                visible: root.tempSuaveVisible()
+                                text: "media " + root.tempSuaveDisplay()
+                                font.pixelSize: root.fsBody
+                                color: root.cDim
+                                elide: Text.ElideRight
+                                Layout.fillWidth: true
+                                Layout.minimumWidth: 0
+                            }
                         }
                     }
                     PlasmaComponents3.Label {
                         text: root.backendUp ? (root.freqMhz / 1000).toFixed(2) + " GHz" : ""
                         font.pixelSize: root.fsBody
                         color: root.cMed
+                        Layout.minimumWidth: 0
+                        elide: Text.ElideRight
                     }
                 }
             }
 
             // ---------- tarjeta: ventilador ----------
             Rectangle {
+                id: fanCard
                 Layout.fillWidth: true
                 Layout.preferredHeight: 62
                 radius: root.rCard
                 color: root.cCard
                 border.width: 1
-                border.color: root.cBorder
+                // el aviso de anomalía se ve también en el borde de la tarjeta
+                border.color: root.fanAviso ? root.cErr : root.cBorder
+
+                HoverHandler { id: fanHover }
+                PlasmaComponents3.ToolTip {
+                    visible: fanHover.hovered
+                    text: root.fanTooltip()
+                }
 
                 RowLayout {
                     anchors.fill: parent
@@ -414,28 +616,36 @@ PlasmoidItem {
                         sourceSize: Qt.size(26, 26)
                         Layout.preferredWidth: 26
                         Layout.preferredHeight: 26
+                        Layout.alignment: Qt.AlignVCenter
                         opacity: root.backendUp ? 1 : 0.4
                     }
                     ColumnLayout {
                         spacing: 1
                         Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         PlasmaComponents3.Label {
                             text: "VENTILADOR"
                             font.pixelSize: root.fsCap
                             font.weight: Font.Medium
                             opacity: 0.6
+                            elide: Text.ElideRight
+                            Layout.minimumWidth: 0
                         }
                         PlasmaComponents3.Label {
-                            text: root.backendUp && root.fanRpm > 0 ? root.fanRpm + " RPM" : "—"
+                            text: root.fanValorTexto()
                             font.pixelSize: root.fsVal
                             font.weight: Font.Bold
                             color: root.cMed
+                            elide: Text.ElideRight
+                            Layout.minimumWidth: 0
                         }
                     }
+                    // tres estados: en marcha / parado / ¡sin respuesta!
                     PlasmaComponents3.Label {
-                        text: root.backendUp && root.fanRpm > 0 ? "en marcha" : "parado"
+                        text: root.fanEstadoTexto()
                         font.pixelSize: root.fsBody
-                        color: root.backendUp && root.fanRpm > 0 ? root.cOK : root.cDim
+                        font.weight: root.fanAviso ? Font.DemiBold : Font.Normal
+                        color: root.fanEstadoColor()
                     }
                 }
             }

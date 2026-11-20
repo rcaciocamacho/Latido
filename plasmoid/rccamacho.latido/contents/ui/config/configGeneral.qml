@@ -11,8 +11,8 @@ KCM.SimpleKCM {
     property string apiUrl: "http://127.0.0.1:8136"
     property int intervalS: 2
     property string unit: "C"
-    property int warnC: 60              // umbral aviso (siempre en °C)
-    property int critC: 80              // umbral crítico (siempre en °C)
+    property int warnC: 87              // umbral aviso (override del perfil, en °C)
+    property int critC: 94              // umbral crítico (override del perfil, en °C)
     property bool autoShow: true        // mostrar la mascota flotante en el escritorio
 
     // conversión según la unidad elegida (los umbrales se guardan en °C)
@@ -59,8 +59,8 @@ KCM.SimpleKCM {
             if (!d) return
             page.intervalS = d.interval_s || 2
             page.unit = d.unit === "F" ? "F" : "C"
-            page.warnC = d.temp_warn_c || 60
-            page.critC = d.temp_crit_c || 80
+            page.warnC = d.temp_warn_c || 87
+            page.critC = d.temp_crit_c || 94
             page.autoShow = d.auto_show !== undefined ? d.auto_show : true
             for (var i = 0; i < intervalCombo.model.count; i++) {
                 if (intervalCombo.model.get(i).value === page.intervalS) intervalCombo.currentIndex = i
@@ -85,7 +85,7 @@ KCM.SimpleKCM {
         RowLayout {
             Layout.fillWidth: true
             PlasmaComponents3.Label {
-                text: "Intervalo de refresco"
+                text: "Intervalo de refresco del widget"
                 Layout.fillWidth: true
             }
             Controls.ComboBox {
@@ -100,6 +100,14 @@ KCM.SimpleKCM {
                 textRole: "text"
                 onActivated: page.intervalS = intervalCombo.model.get(currentIndex).value
             }
+        }
+        PlasmaComponents3.Label {
+            text: "El backend muestrea a 1 s (perfil térmico); este ajuste solo cambia cada cuánto repinta el widget."
+            font.pixelSize: 10
+            color: Kirigami.Theme.textColor
+            opacity: 0.55
+            wrapMode: Text.WordWrap
+            Layout.fillWidth: true
         }
 
         RowLayout {

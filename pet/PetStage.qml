@@ -26,7 +26,10 @@ Window {
     property real _sw: 0                // ancho de pantalla cacheado
 
     // ---------- métricas del sistema ----------
-    property var metrics: ({ temp_c: 0, cpu_pct: 0, mem_pct: 0, temp_warn_c: 60, temp_crit_c: 80 })
+    property var metrics: ({ temp_c: 0, cpu_pct: 0, mem_pct: 0 })
+    // estado térmico del backend (termico.estado): manda sobre los umbrales
+    property bool termDisponible: false
+    property string termEstado: ""
     property bool shouldShow: false
 
     width: Math.round(18 * px)
@@ -55,6 +58,17 @@ Window {
         x.send()
     }
 
+    // estado de la mascota: lo decide el backend (misma tabla que el plasmoid)
+    function estadoMascota() {
+        if (!stage.termDisponible) return "idle"
+        if (stage.termEstado === "idle")
+            return stage.metrics.cpu_pct < 4 ? "sleepy" : "idle"
+        if (stage.termEstado === "boost") return "busy"
+        if (stage.termEstado === "warning") return "hot"
+        if (stage.termEstado === "critical") return "crit"
+        return "idle"
+    }
+
     function refresh() {
         apiGet("/api/config", function(d) {
             if (!d) return
@@ -66,11 +80,16 @@ Window {
             stage.metrics = {
                 temp_c: d.temp_c != null ? d.temp_c : 0,
                 cpu_pct: d.cpu_pct || 0,
-                mem_pct: d.mem_pct || 0,
-                temp_warn_c: d.temp_warn_c || 60,
-                temp_crit_c: d.temp_crit_c || 80
+                mem_pct: d.mem_pct || 0
             }
-            var hot = stage.metrics.temp_c > stage.tempTrigger
+            var t = d.termico
+            stage.termDisponible = !!(t && t.disponible)
+            stage.termEstado = stage.termDisponible ? (t.estado || "") : ""
+            // «caliente» = banda de aviso o crítica del perfil; sin perfil, el
+            // umbral de config (comportamiento antiguo)
+            var hot = stage.termDisponible
+                ? (stage.termEstado === "warning" || stage.termEstado === "critical")
+                : (stage.metrics.temp_c > stage.tempTrigger)
             var load = stage.metrics.cpu_pct > stage.cpuTrigger
             stage.shouldShow = stage.autoShowCfg && (hot || load)
         })
@@ -142,10 +161,7 @@ Window {
         anchors.fill: parent
         pixel: stage.px
         backendUp: true
-        cpuPct: stage.metrics.cpu_pct
-        tempC: stage.metrics.temp_c
-        tempWarnC: stage.metrics.temp_warn_c
-        tempCritC: stage.metrics.temp_crit_c
+        estadoMascota: stage.estadoMascota()
     }
     MouseArea {
         anchors.fill: parent

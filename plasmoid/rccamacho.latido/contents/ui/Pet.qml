@@ -6,12 +6,12 @@ import QtQuick
 Canvas {
     id: pet
 
-    // ---- datos del sistema (se enlazan desde main.qml / PetStage.qml) ----
+    // ---- datos del sistema (los enlaza main.qml) ----
     property bool backendUp: false
-    property real cpuPct: 0
-    property real tempC: 0
-    property real tempWarnC: 60
-    property real tempCritC: 80
+    // Estado ya resuelto por main.qml a partir de termico.estado del backend:
+    // aquí NO se comparan umbrales de temperatura (idle/normal/boost/warning/
+    // critical -> idle/sleepy/busy/hot/crit los decide el backend).
+    property string estadoMascota: ""
 
     // ---- animación ----
     property string stateName: "idle"
@@ -29,10 +29,7 @@ Canvas {
 
     function computeState() {
         if (!pet.backendUp) return "idle"
-        if (pet.tempC >= pet.tempCritC) return "crit"
-        if (pet.tempC >= pet.tempWarnC) return "hot"
-        if (pet.cpuPct >= 60) return "busy"
-        if (pet.cpuPct < 4 && pet.tempC < pet.tempWarnC - 8) return "sleepy"
+        if (pet.estadoMascota !== "") return pet.estadoMascota
         return "idle"
     }
 
@@ -42,10 +39,7 @@ Canvas {
     }
 
     onBackendUpChanged: pet.syncState()
-    onCpuPctChanged: pet.syncState()
-    onTempCChanged: pet.syncState()
-    onTempWarnCChanged: pet.syncState()
-    onTempCritCChanged: pet.syncState()
+    onEstadoMascotaChanged: pet.syncState()
 
     Component.onCompleted: pet.syncState()
 
