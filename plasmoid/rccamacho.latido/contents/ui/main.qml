@@ -21,6 +21,7 @@ PlasmoidItem {
     readonly property color cWarn:   "#f39c12"   // ámbar  — aviso
     readonly property color cErr:    "#e74c3c"   // rojo   — crítico
     readonly property color cInfo:   "#3498db"   // azul   — acento informativo
+    readonly property color cBoost:  "#9b59b6"   // violeta — carga alta (tono propio, D2 23/11/2026)
 
     // medidas (escala LibreLinkUp)
     readonly property int rCard:   8
@@ -158,7 +159,7 @@ PlasmoidItem {
     // §4.1 — tabla de estados: color, icono y etiqueta salen de termico.estado
     function estadoColor(e) {
         if (e === "normal") return root.cOK
-        if (e === "boost") return root.cInfo
+        if (e === "boost") return root.cBoost
         if (e === "warning") return root.cWarn
         if (e === "critical") return root.cErr
         return root.cMed                    // idle (y estado desconocido)
